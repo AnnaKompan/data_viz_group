@@ -1,3 +1,4 @@
+// set up svg and plot size
 const svg = d3.select("#map-svg");
 const width = +svg.attr("width");
 const height = +svg.attr("height");
@@ -5,14 +6,14 @@ const colorScale = d3
   .scaleThreshold()
   .domain([1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000])
   .range(d3.schemeReds[9]);
+// animation initial set ups
 let start = false;
 let intervalId;
 let currentIndex = 0;
 
 const formatNumber = d3.format(",");
-
 svg.attr("width", width).attr("height", height);
-
+// tooltip for map
 const tooltip = d3
   .select("body")
   .append("div")
@@ -24,7 +25,7 @@ const tooltip = d3
   .style("border-radius", "3px")
   .style("pointer-events", "none")
   .style("opacity", 0);
-
+// map projection and path generation
 const projection = d3
   .geoMercator()
   .scale(130)
@@ -35,7 +36,7 @@ let asylumData;
 let countries;
 let years;
 let selectedYear = "2013";
-
+// countries added manually that differ from data and map
 const countryNameMapping = {
   "United States of America": "United States",
   "South Korea": "Korea, Republic of",
@@ -50,11 +51,13 @@ const countryNameMapping = {
   "Dominican Rep.": "Dominican Republic",
   "Solomon Is.": "Solomon Islands",
 };
+
 const yearBox = d3.select("#year").append("select");
 yearBox.on("change", function () {
   selectedYear = this.value;
   updateMap();
 });
+// map plotting
 Promise.all([
   d3.json("https://unpkg.com/world-atlas@2/countries-50m.json"),
   d3.csv("./data/map_data.csv"),
@@ -73,6 +76,7 @@ Promise.all([
 });
 let asylumApplications = {};
 
+// based on year plot map
 function updateMap(year) {
   asylumApplications = {};
 
@@ -147,6 +151,7 @@ function updateMap(year) {
     });
 }
 
+// legend for refugee ranges
 function createLegend() {
   const legend = d3.select("#legend-svg");
   const legendWidth = +legend.attr("width");
@@ -283,7 +288,7 @@ function updateYearFromSlider() {
   updateMap(year);
   d3.select("#year").text(year);
 }
-
+// play timelapse animation
 function playTimeLapse() {
   intervalId = setInterval(() => {
     if (currentIndex >= years.length) {
@@ -296,7 +301,7 @@ function playTimeLapse() {
     currentIndex++;
   }, 1000);
 }
-
+// function for slider for year selection
 function initializeSlider() {
   const slider = d3
     .select("#dateSlider")
@@ -305,13 +310,3 @@ function initializeSlider() {
     .attr("value", 0)
     .on("input", updateYearFromSlider);
 }
-
-d3.csv("/data/map_data.csv").then(function (data) {
-  data.forEach((d) => {
-    d["Refugees by country of origin"] = +d["Refugees by country of origin"];
-  });
-  const maxdata = d3.max(data, (d) => d["Refugees by country of origin"]);
-  const maxDataRow = data.find(
-    (d) => d["Refugees by country of origin"] === maxdata
-  );
-});

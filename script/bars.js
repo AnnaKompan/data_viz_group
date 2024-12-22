@@ -1,3 +1,4 @@
+// set svg, plot size and margins
 const svg = d3.select("#bars-plot");
 
 const width = +svg.attr("width");
@@ -11,6 +12,7 @@ const g = svg
   .append("g")
   .attr("transform", `translate(${margin.left},${margin.top})`);
 
+// load data
 d3.csv("./data/bar_chart/all_countries.csv").then(function (data) {
   const yearlyData = d3.rollup(
     data,
@@ -25,6 +27,7 @@ d3.csv("./data/bar_chart/all_countries.csv").then(function (data) {
     refugees: values.refugees,
   })).sort((a, b) => a.year - b.year);
 
+  // scales
   const x0 = d3
     .scaleBand()
     .domain(processedData.map((d) => d.year))
@@ -51,7 +54,7 @@ d3.csv("./data/bar_chart/all_countries.csv").then(function (data) {
     .call(d3.axisBottom(x0).tickFormat(d3.format("d")));
 
   g.append("g").attr("class", "y-axis").call(d3.axisLeft(y));
-
+  // create bars
   const yearGroups = g
     .selectAll(".year-group")
     .data(processedData)
@@ -74,7 +77,7 @@ d3.csv("./data/bar_chart/all_countries.csv").then(function (data) {
     .delay((d, i) => i * 600)
     .attr("y", (d) => y(d.value))
     .attr("height", (d) => chartHeight - y(d.value));
-
+  // add labels
   yearGroups
     .selectAll("text")
     .data((d) => [{ key: "refugees", value: d.refugees }])

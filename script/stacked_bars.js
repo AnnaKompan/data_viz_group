@@ -1,3 +1,4 @@
+// set svg, plot size, margins
 const stackedSvg = d3.select("#stacked-bars-plot");
 const stackedMargin = { top: 20, right: 30, bottom: 30, left: 300 };
 const stackedWidth =
@@ -5,16 +6,18 @@ const stackedWidth =
 const stackedBarHeight = 30;
 const stackedBarSpacing = 10;
 
+// chart group
 const chart = stackedSvg
   .append("g")
   .attr("transform", `translate(${stackedMargin.left},${stackedMargin.top})`);
 
+// set scales and axes
 const xScale = d3.scaleLinear().range([0, stackedWidth]);
 const yScale = d3.scaleBand().padding(0.2);
-
 const xAxisGroup = chart.append("g");
 const yAxisGroup = chart.append("g").attr("transform", `translate(0, 0)`);
 
+// set tooltip
 const tooltip = d3
   .select("body")
   .append("div")
@@ -27,10 +30,11 @@ const tooltip = d3
   .style("pointer-events", "none")
   .style("opacity", 0);
 
+// menu and settings
 const menu1 = d3.select("#asylum_origin_menu");
-
 const yearCheckboxes = d3.selectAll(".year-checkbox");
 
+// manually add countries that differ from map and data file
 const continentFiles = {
   Europe: "./data/bar_chart/europe.csv",
   "Asia and The Pacific": "./data/bar_chart/asia_and_the_pacific.csv",
@@ -56,6 +60,7 @@ const yearColors = {
   2023: "#D95F59",
 };
 
+// function to update chart with new data
 const updateChart = (filePath) => {
   d3.csv(filePath).then((data) => {
     data.forEach((d) => {
@@ -169,6 +174,7 @@ const updateChart = (filePath) => {
   });
 };
 
+// set button and menu interaction
 const buttons = d3.selectAll(".nav-link");
 buttons.on("click", function () {
   buttons.classed("active", false);
@@ -190,5 +196,5 @@ yearCheckboxes.on("change", () => {
   const filePath = continentFiles[activeContinent] || continentFiles["All"];
   updateChart(filePath);
 });
-
+// initial chart with Europe data
 updateChart(continentFiles["Europe"]);
