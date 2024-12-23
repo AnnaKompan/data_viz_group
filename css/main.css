@@ -529,3 +529,62 @@ footer {
   overflow-x: auto;
   white-space: nowrap;
 }
+
+/* =================================================================姜欣妤 START DIAGRAM CSS================================================================= */
+select {
+  font-size: 14px;
+  padding: 8px;
+  margin: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+#chart {
+  position: relative;
+}
+.plot-container-s {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.sankey-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.sankey-section label {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.sankey-section select,
+.sankey-section input {
+  font-size: 14px;
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+  max-width: 200px;
+  min-width: 100px;
+}
+
+@media screen and (max-width: 768px) {
+  .sankey-section {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .sankey-section label,
+  .sankey-section select,
+  .sankey-section input {
+    flex: none;
+    width: 80%;
+  }
+}
