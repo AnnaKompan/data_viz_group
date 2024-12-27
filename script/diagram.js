@@ -1,12 +1,9 @@
+document.getElementById("loading-overlay").style.display = "flex";
 // 主程式
 d3.csv("./data/bar_chart/all_countries.csv").then(function (rawData) {
   // 過濾資料：初始只移除值為 0 的資料
   let filteredData = rawData.filter(
-    (d) =>
-      +d["Refugees under UNHCR's mandate"] !== 0 &&
-      +d["Refugees under UNHCR's mandate"] > 20 &&
-      d["Country of origin"] !== "Serbia and Kosovo: S/RES/1244 (1999)" &&
-      d["Country of asylum"] !== "Serbia and Kosovo: S/RES/1244 (1999)"
+    (d) => +d["Refugees under UNHCR's mandate"] !== 0
   );
 
   // 初始化下拉選單
@@ -14,55 +11,89 @@ d3.csv("./data/bar_chart/all_countries.csv").then(function (rawData) {
   createDropdownOptions(filteredData, "Country of origin", "origin-select");
   createDropdownOptions(filteredData, "Country of asylum", "asylum-select");
 
-  // 綁定篩選條件（下拉選單和門檻值）事件
-  d3.selectAll("select, #threshold-select").on("change", function () {
+  // 初始繪製
+  const initialGraph = makeGraph(filteredData, "all", "all", "all", 0);
+  draw(initialGraph);
+
+  document.getElementById("loading-overlay").style.display = "none";
+
+  // 綁定篩選條件事件並記錄最後操作的選單
+  d3.selectAll("select, #threshold-select").on("change", function (event) {
+    const changedElement = event.target.id; // 獲取最後操作的選單 ID
     const filters = getDropdownValues();
-    const threshold = +d3.select("#threshold-select").property("value"); // 獲取門檻值
+    const thresholdValue = +filters.threshold || 0; // 如果是 undefined 或 NaN，則設置為 0
 
-    // 根據篩選條件篩選數據
-    let currentFilteredData = filteredData.filter(
-      (d) => +d["Refugees under UNHCR's mandate"] > threshold
-    );
+    // 動態調整其他選單
+    adjustDropdownOptions(filteredData, filters, changedElement);
 
-    if (filters.origin !== "all") {
-      currentFilteredData = currentFilteredData.filter(
-        (d) => d["Country of origin"] === filters.origin
+    // 根據篩選條件更新數據並繪製圖表
+    let currentFilteredData = filteredData.filter((d) => {
+      return (
+        (filters.origin === "all" ||
+          d["Country of origin"] === filters.origin) &&
+        (filters.asylum === "all" ||
+          d["Country of asylum"] === filters.asylum) &&
+        d["Refugees under UNHCR's mandate"] >= thresholdValue
       );
-    }
+    });
 
-    if (filters.asylum !== "all") {
-      currentFilteredData = currentFilteredData.filter(
-        (d) => d["Country of asylum"] === filters.asylum
-      );
-    }
+    clearCanvas(); // 清空畫布
 
     // 生成圖表數據並重新繪製
     const graph = makeGraph(
       currentFilteredData,
       filters.year,
       filters.origin,
-      filters.asylum
+      filters.asylum,
+      thresholdValue
     );
-    clearCanvas();
     draw(graph);
   });
-
-  // 初始繪製
-  const initialGraph = makeGraph(filteredData, "2013", "all", "all", 5000);
-  draw(initialGraph);
 });
+
+function adjustDropdownOptions(data, filters, changedElement) {
+  // 如果改變的是出國選單
+  if (changedElement === "origin-select") {
+    const filteredAsylum = data.filter((d) => {
+      return (
+        d["Country of origin"] === filters.origin &&
+        +d["Refugees under UNHCR's mandate"] !== 0
+      );
+    });
+    createDropdownOptions(filteredAsylum, "Country of asylum", "asylum-select");
+  }
+
+  // 如果改變的是入國選單
+  if (changedElement === "asylum-select") {
+    const filteredOrigin = data.filter((d) => {
+      return (
+        d["Country of asylum"] === filters.asylum &&
+        +d["Refugees under UNHCR's mandate"] !== 0
+      );
+    });
+    createDropdownOptions(filteredOrigin, "Country of origin", "origin-select");
+  }
+}
 
 // 建立下拉選單選項
 function createDropdownOptions(data, field, elementId) {
+  // 獲取篩選後的唯一值
   const uniqueValues = Array.from(new Set(data.map((d) => d[field]))).sort();
-  const dropdown = d3.select(`#${elementId}`);
 
-  dropdown.append("option").text("All").attr("value", "all");
+  // 更新下拉選單
+  const dropdown = d3.select(`#${elementId}`);
+  const currentValue = dropdown.property("value"); // 取得當前選中值
+
+  dropdown.selectAll("option").remove(); // 清空舊選項
+  dropdown.append("option").text("All").attr("value", "all"); // 添加 "All" 選項
 
   uniqueValues.forEach((value) => {
     dropdown.append("option").text(value).attr("value", value);
   });
-  //dropdown.property("value", "all"); // 預設選中 All
+
+  // 恢復選中值（若仍然有效）
+  const options = uniqueValues.includes(currentValue) ? currentValue : "all";
+  dropdown.property("value", options); // 設置選中的值
 }
 
 // 取得下拉選單值
@@ -71,7 +102,7 @@ function getDropdownValues() {
     year: d3.select("#year-select").property("value"),
     origin: d3.select("#origin-select").property("value"),
     asylum: d3.select("#asylum-select").property("value"),
-    threshold: d3.select("#threshold-select").property("value"), // 新增門檻值
+    threshold: d3.select("#threshold-select").property("value"),
   };
 }
 
@@ -81,10 +112,12 @@ function clearCanvas() {
 }
 
 // 建立 Sankey 資料結構
-function makeGraph(data, year, origin, asylum, threshold = 10000) {
+function makeGraph(data, year, origin, asylum, threshold) {
   const graph = { nodes: [], links: [] };
 
-  // 篩選資料
+  const originMap = new Map();
+  const asylumMap = new Map();
+
   const yearFilteredData = data.filter(
     (d) =>
       (year === "all" || d.Year === year) &&
@@ -92,9 +125,6 @@ function makeGraph(data, year, origin, asylum, threshold = 10000) {
       (asylum === "all" || d["Country of asylum"] === asylum) &&
       +d["Refugees under UNHCR's mandate"] >= threshold // 應用門檻
   );
-
-  const originMap = new Map();
-  const asylumMap = new Map();
 
   yearFilteredData.forEach((d) => {
     const origin = d["Country of origin"];
@@ -124,7 +154,7 @@ function makeGraph(data, year, origin, asylum, threshold = 10000) {
 }
 
 // 繪製 Sankey 圖表
-function draw(graph, year) {
+function draw(graph) {
   const width = 1200;
   const height = Math.max(800, graph.nodes.length * 20);
 
@@ -150,38 +180,6 @@ function draw(graph, year) {
     .scaleOrdinal(d3.schemeCategory10)
     .domain(nodes.map((d) => d.name));
 
-  const linkWidthMultiplier = year === "all" ? 1.5 : 5;
-
-  const defs = svg.append("defs");
-  // 為每條連線生成漸變
-  links.forEach((d, i) => {
-    const gradientId = `gradient-${i}`;
-    const gradient = defs
-      .append("linearGradient")
-      .attr("id", gradientId)
-      .attr("gradientUnits", "userSpaceOnUse")
-      .attr("x1", d.source.x1)
-      .attr("x2", d.target.x0);
-
-    gradient
-      .append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", color(d.source.name))
-      .attr("stop-opacity", 0.5); // 前端透明度降低
-
-    gradient
-      .append("stop")
-      .attr("offset", "50%")
-      .attr("stop-color", color(d.source.name))
-      .attr("stop-opacity", 1); // 中間不透明
-
-    gradient
-      .append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", color(d.target.name))
-      .attr("stop-opacity", 0.5); // 後端透明度降低
-  });
-
   // 繪製連線
   const tooltip = createTooltip();
   svg
@@ -192,8 +190,7 @@ function draw(graph, year) {
     .attr("class", "link")
     .attr("d", d3.sankeyLinkHorizontal())
     .attr("stroke", (d) => color(d.source.name))
-    .attr("stroke-width", (d) => Math.max(1, d.width * linkWidthMultiplier))
-    .attr("stroke", (d, i) => `url(#gradient-${i})`) // 使用漸變
+    .attr("stroke-width", (d) => Math.max(1, d.width))
     .attr("fill", "none")
     .on("mouseover", (event, d) => tooltip.style("opacity", 1))
     .on("mousemove", (event, d) => {
@@ -206,15 +203,18 @@ function draw(graph, year) {
       tooltip.transition().duration(200).style("opacity", 0);
     });
 
+  let draggedNode = null; // 記錄被拖曳的節點
+  let originalIndex = null; // 記錄原始索引
+
   // 繪製節點
   const nodeGroup = svg.append("g").selectAll("g").data(nodes).join("g");
 
   nodeGroup
     .append("rect")
     .attr("x", (d) => d.x0 + 10)
-    .attr("y", (d) => d.y0 - 5)
+    .attr("y", (d) => d.y0)
     .attr("width", (d) => d.x1 - d.x0 - 15)
-    .attr("height", (d) => d.y1 - d.y0 + 10)
+    .attr("height", (d) => d.y1 - d.y0)
     .attr("fill", "black");
 
   nodeGroup
@@ -223,7 +223,67 @@ function draw(graph, year) {
     .attr("y", (d) => (d.y1 + d.y0) / 2)
     .attr("dy", "0.35em")
     .attr("text-anchor", (d) => (d.role === "origin" ? "end" : "start"))
-    .text((d) => d.name); // 顯示完整名稱
+    .text((d) => (d.name.length > 30 ? `${d.name.slice(0, 27)}...` : d.name))
+    .call(
+      d3
+        .drag()
+        .on("start", function (event, d) {
+          d3.select(this).raise(); // 提升被拖曳的節點層級
+          d3.select(this).attr("cursor", "pointer");
+        })
+        .on("drag", function (event, d) {
+          const dy = event.dy; // 拖曳的垂直位移
+          d.y0 += dy; // 更新節點的起始 y 座標
+          d.y1 += dy; // 更新節點的結束 y 座標
+
+          // 更新節點位置
+          d3.select(this)
+            .select("rect")
+            .attr("y", d.y0)
+            .attr("height", d.y1 - d.y0);
+
+          d3.select(this)
+            .select("text")
+            .attr("y", (d.y0 + d.y1) / 2);
+          ``;
+          // 更新連線
+          svg.selectAll(".link").attr("d", d3.sankeyLinkHorizontal()); // 動態更新連線路徑
+        })
+
+        .on("end", function (event, draggedNode) {
+          // 儲存節點的起始與結束位置
+          const startY0 = draggedNode.y0 - event.dy; // 起始位置的 y0
+          const startY1 = draggedNode.y1 - event.dy; // 起始位置的 y1
+          const endY0 = draggedNode.y0; // 結束位置的 y0
+          const endY1 = draggedNode.y1; // 結束位置的 y1
+
+          // 遍歷節點，根據拖曳範圍調整相關節點
+          graph.nodes.forEach((node) => {
+            if (node !== draggedNode) {
+              if (startY0 < endY0 && node.y0 >= startY1 && node.y0 <= endY0) {
+                // 範圍內的節點需要向上推
+                node.y0 -= endY1 - startY1;
+                node.y1 = node.y0 + (node.y1 - node.y0);
+              } else if (startY0 > endY0 && node.y1 <= endY1) {
+                // 範圍內的節點需要向下拉
+                node.y0 += startY1 - endY1;
+                node.y1 = node.y0 + (node.y1 - node.y0);
+              }
+            }
+          });
+          sankey.update(graph); // 使用 sankey 更新節點與連線
+
+          // 更新節點與連線
+          svg.selectAll(".link").attr("d", d3.sankeyLinkHorizontal());
+
+          svg
+            .selectAll("rect")
+            .attr("y", (d) => d.y0)
+            .attr("height", (d) => d.y1 - d.y0);
+
+          svg.selectAll("text").attr("y", (d) => (d.y0 + d.y1) / 2);
+        })
+    );
 }
 
 // 建立 Tooltip
